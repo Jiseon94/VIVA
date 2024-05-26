@@ -1,2 +1,2 @@
 # VIVA
-KH정보교육원 Final Team Project
+KH정보교육원 Final Team Project 🎵
