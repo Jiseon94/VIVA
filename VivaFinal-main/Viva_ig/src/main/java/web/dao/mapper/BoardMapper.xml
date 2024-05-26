@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper 
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+  <mapper namespace="web.dao.face.BoardDao">	
+  
+ 	<select id="selectCntAll" resultType="int">
+  		SELECT count(*) FROM board
+  	</select>
+  	
+  	<select id="selectCntFree" resultType="int">
+  		SELECT count(*) FROM board
+  		WHERE category_type = 'free'
+  	</select>
+  	
+  	<select id="selectCntQna" resultType="int">
+  		SELECT count(*) FROM board
+  		WHERE category_type = 'qna'
+  	</select>
+  	
+  		<select id="selectAllBoardList" resultType="web.dto.Board" parameterType="web.util.Paging">
+		SELECT * FROM (
+	        SELECT rownum rnum, B.* FROM (
+	            SELECT * FROM board
+	                LEFT OUTER JOIN users ON board.user_no = users.user_no
+	            WHERE (category_type = #{categoryType, jdbcType=VARCHAR, javaType=java.lang.String, typeHandler=org.apache.ibatis.type.StringTypeHandler}
+	                OR (#{categoryType, jdbcType=VARCHAR, javaType=java.lang.String, typeHandler=org.apache.ibatis.type.StringTypeHandler} IS NULL
+	                    AND 'all' = 'all'))
+	            ORDER BY board_no DESC
+	        ) B
+	    )
+	    WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+
+    <select id="selectFreeBoardList" resultType="web.dto.Board" parameterType="web.util.Paging">
+		SELECT * FROM (
+			SELECT rownum rnum, B.*  FROM (
+				SELECT * FROM board
+					LEFT OUTER JOIN users ON board.user_no = users.user_no
+					WHERE category_type = 'free'
+					ORDER BY board_no DESC
+				) B
+			)
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+
+    <select id="selectQnaBoardList" resultType="web.dto.Board" parameterType="web.util.Paging">
+		SELECT * FROM (
+			SELECT rownum rnum, B.* FROM (
+				SELECT * FROM board
+					LEFT OUTER JOIN users ON board.user_no = users.user_no
+				WHERE category_type = 'qna'
+				ORDER BY board_no DESC
+			) B
+		  )
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id="selectCntQnaByKeyword" parameterType="string" resultType="int">
+	  SELECT COUNT(*) FROM board
+	  WHERE category_type = 'qna' AND board_title LIKE '%' || #{keyword} || '%'
+	</select>
+	<select id="selectCntFreeByKeyword" parameterType="string" resultType="int">
+	  SELECT COUNT(*) FROM board
+	  WHERE category_type = 'free' AND board_title LIKE '%' || #{keyword} || '%'
+	</select>
+	
+
+  	<select id="selectCntAllByKeyword" parameterType="string" resultType="int">
+  		SELECT count(*) FROM board
+	  		<if test="keyword != null and keyword != ''">
+	  			WHERE board_title LIKE '%' || #{keyword} || '%' 
+	  		</if>
+  	</select>
+  	
+  	<select id="selectAllBoardListByKeyword" resultType="web.dto.Board" parameterType="java.util.Map">
+		SELECT * FROM (
+		    SELECT rownum rnum, B.* FROM (
+		        SELECT * FROM board
+					LEFT OUTER JOIN users ON board.user_no = users.user_no
+					WHERE board_title LIKE '%' || #{keyword} || '%'
+					ORDER BY board_no DESC
+		        ) B
+		    ) BOARD
+		WHERE rnum BETWEEN #{paging.startNo} AND #{paging.endNo}
+  	</select>
+  	
+  	<select id="selectFreeBoardListByKeyword" resultType="web.dto.Board" parameterType="java.util.Map">
+	    SELECT * FROM (
+	        SELECT rownum rnum, B.* FROM (
+	            SELECT * FROM board
+	            	LEFT OUTER JOIN users ON board.user_no = users.user_no
+	           	 	WHERE board_title LIKE '%' || #{keyword} || '%'
+					AND category_type = 'free'
+					ORDER BY board_no DESC
+				) B
+			) BOARD
+	    WHERE rnum BETWEEN #{paging.startNo} AND #{paging.endNo}
+	</select>
+  	
+  	<select id="selectQnaBoardListByKeyword" resultType="web.dto.Board" parameterType="java.util.Map">
+	    SELECT * FROM (
+	        SELECT rownum rnum, B.* FROM (
+	            SELECT * FROM board
+	            	LEFT OUTER JOIN users ON board.user_no = users.user_no
+	           	 	WHERE board_title LIKE '%' || #{keyword} || '%'
+					AND category_type = 'qna'
+					ORDER BY board_no DESC
+				) B
+			) BOARD
+	    WHERE rnum BETWEEN #{paging.startNo} AND #{paging.endNo}
+	</select>
+  	
+  	
+	<select id="selectBoardListByKeyword" parameterType="java.util.Map" resultType="web.dto.Board">
+	  SELECT *
+	  FROM (
+	    SELECT ROW_NUMBER() OVER (ORDER BY BOARD_NO DESC) AS rn, B.*
+	    FROM BOARD B
+	    WHERE
+	      <choose>
+	        <when test="categoryType != null">
+	          CATEGORY_TYPE = #{categoryType}
+	        </when>
+	        <otherwise>
+	          1=1
+	        </otherwise>
+	      </choose>
+	      <if test="keyword != null and keyword != ''">
+	        AND BOARD_TITLE LIKE '%' || #{keyword} || '%'
+	      </if>
+	    )
+	    WHERE rn BETWEEN #{paging.startNo} AND #{paging.endNo}
+	    ORDER BY BOARD_NO DESC
+	</select>
+	     
+  	
+  	<update id="hit" parameterType="web.dto.Board">
+  		UPDATE board
+  		SET board_hit = board_hit + 1
+  		WHERE board_no = #{boardNo}
+  	</update>
+  	
+  	<select id="select" resultType="web.dto.Board" parameterType="web.dto.Board">
+  		SELECT * FROM board
+			LEFT JOIN USERS
+			ON BOARD.user_no = USERS.user_no
+  		WHERE board_no = #{boardNo}
+  	</select>
+  	
+  <insert id="insertBoard" parameterType="web.dto.Board">
+  		<selectKey order="BEFORE" resultType="int" keyProperty="boardNo">
+  			SELECT board_seq.nextval FROM dual
+  		</selectKey>
+  		
+  		INSERT INTO board ( board_no, board_title, board_content, board_date, category_type, board_hit, board_like, user_no )
+  		VALUES ( #{boardNo}, #{boardTitle}, #{boardContent}, current_date, #{categoryType}, 0, 0, #{userNo} )
+  	</insert>
+  	
+  	<insert id="insertFile" parameterType="web.dto.Files">
+  		INSERT INTO Files ( file_no, originname, storedname, filesize, file_date, board_no )
+  		VALUES ( files_seq.nextval, #{originname}, #{storedname}, #{filesize}, '23/05/31', #{boardNo} )
+  	</insert>
+  	
+  	<select id="selectBoardFileByBoardNo" resultType="web.dto.Files" parameterType="web.dto.Board">
+  		SELECT file_no, originname, storedname, board_no
+  		FROM Files
+  		WHERE board_no = #{boardNo}
+  	</select>
+  	
+  	<select id="selectBoardFileByFileNo" resultType="web.dto.Files">
+  		SELECT file_no, originname, storedname, board_no
+  		FROM Files
+  		WHERE file_no = #{fileNo}
+  	</select>
+  	
+  	<update id="update" parameterType="web.dto.Board">
+  		UPDATE board
+  		SET		board_title = #{boardTitle}
+  			, board_content = #{boardContent}
+  		WHERE board_no = #{boardNo}
+  	</update>
+  	
+  	<delete id="deleteFile" parameterType="web.dto.Board">
+  		DELETE Files
+  		WHERE board_no = #{boardNo}
+  	</delete>
+
+  	<delete id="delete" parameterType="web.dto.Board">
+  		DELETE board
+  		WHERE board_no = #{boardNo}
+  	</delete>
+  	
+  	<select id="selectByLikeCheck" parameterType="web.dto.Likes" resultType="int">
+  		SELECT count(*) likeCheck FROM LIKES
+  		WHERE user_no = #{userNo} and board_no = #{boardNo}
+  	</select>
+
+  	<insert id="insertBoardLike" parameterType="web.dto.Likes">
+  		INSERT INTO LIKES (BOARD_NO, USER_NO)
+  		VALUES (#{boardNo}, #{userNo})
+  	</insert>
+  	
+  	<delete id="deleteBoardLike" parameterType="web.dto.Likes">
+  		DELETE LIKES
+  		WHERE board_no = #{boardNo} and USER_NO = #{userNo}
+  	</delete>
+  	
+	<select id="selectBoardLikeCount" parameterType="web.dto.Likes" resultType="int">
+    SELECT COUNT(*) FROM LIKES
+    WHERE board_no = #{boardNo}
+	</select>
+  
+  	<select id="selectByViewBoardLike" parameterType="web.dto.Likes" resultType="int">
+	  	SELECT count(*) result FROM Likes
+		WHERE board_no = #{boardNo} AND user_no = #{userNo}
+  	</select>
+  	
+  	<select id="selectComment" resultType="Map" parameterType="Map">
+		select * from comments c
+		inner join users u on u.user_no=c.user_no
+		inner join userprofile p on u.user_no=p.user_no
+		where board_no=#{boardNo}
+		order by comm_no desc
+  	</select>
+  	
+	<insert id="insertComment" parameterType="web.dto.Comments">
+  		INSERT INTO Comments (COMM_NO, COMM_CONTENT, COMM_DATE, BOARD_NO, USER_NO)
+  		VALUES ( comments_seq.nextval, #{commContent}, current_date, #{boardNo}, #{userNo})	
+  	</insert>
+  	
+  	<update id="updateComment" parameterType="web.dto.Comments">
+	  		UPDATE comments
+	  		SET COMM_NO = #{commNo}
+	  			, COMM_CONTENT = #{commContent}
+	  			, COMM_DATE = sysdate
+	  			, BOARD_NO = #{boardNo}
+	  			, USER_NO = 1
+	  		WHERE comm_no = #{commNo} AND board_no = #{boardNo}
+  	</update>
+ 
+ 	<delete id="deleteComment" parameterType="web.dto.Comments">
+ 		DELETE FROM comments
+ 		WHERE comm_no = #{commNo} AND board_no = #{boardNo}
+ 	</delete>
+ 	
+ 	<delete id="deleteCommentAll" parameterType="web.dto.Board">
+ 	DELETE FROM comments
+ 	WHERE board_no = #{boardNo}
+ 	</delete>
+ 	
+ 	<select id="selectUserInfo" resultType="web.dto.Users" parameterType="int">
+ 	select * from users 
+ 	where user_no = #{attribute}
+ 	</select>
+ 	
+  </mapper>

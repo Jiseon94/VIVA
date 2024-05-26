@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper 
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+  <mapper namespace="web.dao.face.BoardNoticeDao">	
+  
+	<select id="selectCntNoticeAll" resultType="int">
+  		SELECT count(*) FROM BOARDNOTICE
+  	</select>
+  	
+  	<select id="selectCntNoticeByKeyword" parameterType="string" resultType="int">
+  		SELECT count(*) FROM BOARDNOTICE
+	  		<if test="keyword != null and keyword != ''">
+	  			WHERE notice_title LIKE '%' || #{keyword} || '%' 
+	  		</if>
+  	</select>
+  	
+	<select id="selectBoardNoticeList" resultType="web.dto.BoardNotice" parameterType="web.util.Paging">
+		SELECT * FROM (
+		   SELECT rownum rnum, BOARDNOTICE.* FROM BOARDNOTICE
+		   ORDER BY notice_no DESC
+		) WHERE rnum BETWEEN #{startNo} AND #{endNo}
+  	</select>
+  	
+  	<select id="selectBoardNoticeListByKeyword" resultType="web.dto.BoardNotice" parameterType="java.util.Map">
+		SELECT * 
+		FROM (
+		    SELECT * FROM BOARDNOTICE
+		    WHERE notice_title LIKE '%' || #{keyword} || '%'
+		    ORDER BY notice_no DESC
+		)
+		WHERE ROWNUM BETWEEN #{paging.startNo} AND #{paging.endNo}
+  	</select>
+  	
+  	<select id="select" resultType="web.dto.BoardNotice" parameterType="web.dto.BoardNotice">
+  		SELECT * FROM BOARDNOTICE
+			LEFT OUTER JOIN ADMIN ON ADMIN.ADMIN_NO = BOARDNOTICE.ADMIN_NO
+		WHERE NOTICE_NO = #{noticeNo}
+		ORDER BY NOTICE_NO DESC
+  	</select>
+  	
+	<insert id="insert" parameterType="web.dto.BoardNotice">
+  		<selectKey order="BEFORE" resultType="int" keyProperty="noticeNo">
+  			SELECT boardnotice_seq.nextval FROM dual
+  		</selectKey>
+  		
+  		INSERT INTO BOARDNOTICE ( NOTICE_NO, NOTICE_TITLE, NOTICE_CONTENT, NOTICE_DATE, ADMIN_NO )
+  		VALUES ( #{noticeNo}, #{noticeTitle}, #{noticeContent}, sysdate, #{adminNo} )
+  	</insert>
+  	
+  	<update id="update" parameterType="web.dto.BoardNotice">
+  		UPDATE BOARDNOTICE
+  		SET	NOTICE_TITLE = #{noticeTitle}
+  			, NOTICE_CONTENT = #{noticeContent}
+  		WHERE NOTICE_NO = #{noticeNo}
+  	</update>
+  	
+  	<delete id="delete" parameterType="web.dto.BoardNotice">
+  		DELETE BOARDNOTICE
+  		WHERE NOTICE_NO = #{noticeNo}
+  	</delete>
+  	
+  
+  </mapper>
+  	

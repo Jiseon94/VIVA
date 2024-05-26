@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+  
+<mapper namespace="web.dao.face.CreditDao">
+
+	<!--  크레딧 이용내역 전체 조회 -->
+	<!--  조건 : 회원번호, visible 상태인것만 -->
+	<select id="selectAllCreditList" resultType="web.dto.Credit" parameterType="web.dto.Credit">
+		select 
+			deal_no, 
+			user_no, 
+<!-- 			(SELECT to_date(to_char(deal_date,'yy.mm.dd'),'yy.mm.dd') from dual) deal_date,  -->
+			DEAL_DATE, 
+			deal_category, 
+			amount 
+		from credit
+		where user_no = #{userNo}
+		and DEAL_STATUS = 'VISIBLE'
+		order by deal_date desc
+	</select>
+	
+	<!--  크레딧 카테고리 분류 -->
+	<!--  조건 : 회원번호, visible 상태인것만 -->
+	<select id="selectCategoryList" resultType="web.dto.Credit" parameterType="web.dto.Credit">
+		SELECT deal_no, user_no, deal_date, deal_category, amount 
+		FROM credit
+		where user_no = #{userNo}
+			and deal_category = #{dealCategory}
+			and DEAL_STATUS = 'VISIBLE'
+		order by deal_date desc
+	</select>
+	
+	<!--  크레딧 필터에 따른 조회결과 - 충전/구매/수익/환전 -->
+	<!--  조건 : 회원번호, visible, 거래유형 -->
+	<select id="selectCreditList" resultType="web.dto.Credit" parameterType="web.dto.Credit">
+		SELECT 
+	    	DEAL_NO, 
+	    	USER_NO, 
+	    	DEAL_DATE, 
+	    	DEAL_CATEGORY, 
+	    	AMOUNT 
+		FROM CREDIT
+		WHERE USER_NO = #{userNo}
+		AND DEAL_STATUS = 'VISIBLE'
+		AND DEAL_CATEGORY = #{dealCategory}
+		ORDER BY DEAL_DATE DESC
+	</select>
+	
+	
+	
+	<!--  회원등급 조회 (0:일반회원/1:업로더. varchar 타입임)-->
+	<select id="selectUserGrade" resultType="String" parameterType="web.dto.Users">
+		select user_grade from users 
+		where user_no = #{userNo}
+	</select>
+
+	<!--  회원 크레딧 총계 구하기 .  null 값은 0으로 -->
+	<select id="selectCreditAcc" resultType="int" parameterType="web.dto.Credit">
+		SELECT 
+	    (
+	        SELECT nvl(SUM(AMOUNT),0) FROM CREDIT
+	        WHERE DEAL_CATEGORY IN (1, 3)
+	        AND USER_NO=#{userNo}
+	    )
+	    - 
+	    (
+	        SELECT nvl(SUM(AMOUNT),0) FROM CREDIT
+	        WHERE DEAL_CATEGORY IN (2, 4)
+	        AND USER_NO=#{userNo}
+	    ) AMOUNT
+		FROM DUAL
+	</select>
+	
+	<!--  크레딧 내역 삭제 => hidden 으로 변경 -->
+	<!--  조건 : 회원번호 와 거래번호-->
+	<update id="deleteDeal" parameterType="web.dto.Credit">
+		UPDATE CREDIT SET DEAL_STATUS = 'HIDDEN'
+		WHERE USER_NO = #{userNo} AND DEAL_NO = #{dealNo}
+	</update>
+	
+	<!-- 결제 번호 받아오기 -->
+	<select id="selectNextDealNo" resultType="int">
+		select credit_seq.nextval from dual
+	</select>
+
+	<!--  결제 트랜잭션 중 -->
+	<!--  1. 트랜잭션 중, credit TB에 충전정보 생성 하기 -->
+	<insert id="insertcharge" parameterType="web.dto.Credit">
+		insert into credit (DEAL_NO, user_no, DEAL_DATE, DEAL_CATEGORY, AMOUNT) 
+		values (#{dealNo}, #{userNo}, #{dealDate}, #{dealCategory}, #{amount})
+	</insert>
+	
+ 	<!--  2. 트랜잭션 중, 크레딧 충전 (TossPayments api)-->
+	<insert id="insertTossData" parameterType="web.dto.TossApi">
+		insert into toss_api (
+			TOSS_NO, DEAL_NO, USER_NO, ORDER_ID, PAYMENT_KEY, METHOD, TOTAL_AMOUNT, APPROVED_AT) 
+		values (toss_api_seq.nextval, #{dealNo}, #{userNo}, #{orderId}, #{paymentKey}, #{method}, #{totalAmount}, #{approvedAt})
+	</insert>
+	
+	<!--  결제 완료 후, 몇몇 정보만 추출하기 -->
+	<select id="selectOkInfo" resultType="HashMap" parameterType="int">
+		SELECT 
+			C.USER_NO, C.DEAL_NO, C.DEAL_CATEGORY, C.AMOUNT, 
+			T.METHOD, T.TOTAL_AMOUNT, T.APPROVED_AT, T.TOSS_NO
+		FROM CREDIT C
+		LEFT JOIN TOSS_API T
+ 		ON C.DEAL_NO = T.DEAL_NO
+ 		WHERE C.DEAL_NO = #{deal_no}
+	</select>
+
+<!--  ================================================================= -->
+	<!--  크레딧에 환전 정보 입력 -->
+	<insert id="insertExchangeCredit" parameterType="web.dto.Credit">
+		insert into credit (DEAL_NO, user_no, DEAL_CATEGORY, AMOUNT) 
+		values (#{dealNo}, #{userNo}, #{dealCategory}, #{amount})
+	</insert>	
+	
+	<!--  환전 정보 -->
+	<insert id="insertExchangeInfo" parameterType="web.dto.ExchangeInfo">
+  		<selectKey order="BEFORE" resultType="int" keyProperty="exNo">
+  			SELECT EXCHANGEINFO_seq.nextval FROM dual
+  		</selectKey>
+		INSERT INTO EXCHANGEINFO (EX_NO,HOLDER,BANK,ACC_NO,USER_NO,EX_AMOUNT, deal_no) 
+		VALUES (#{exNo}, #{holder}, #{bank}, #{accNo}, #{userNo}, #{exAmount}, #{dealNo})
+	</insert>	
+	
+	<!--  입력 완료된 환전 정보 조회하기 -->
+	<select id="selectExchangeInfo" resultType="web.dto.ExchangeInfo">
+		SELECT ex_no, holder, bank, acc_no, user_no, ex_amount, ex_date, adm_transfer, deal_no 
+		FROM exchangeinfo WHERE deal_no = #{dealNo}
+	
+	</select>
+<!--  ================================================================= -->
+	<select id="selectUserInfo" resultType="HashMap" parameterType="int">
+		SELECT USER_EMAIL, USER_NAME FROM USERS 
+		WHERE USER_NO = #{userNo}
+	</select>	
+	
+	
+</mapper>
